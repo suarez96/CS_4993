@@ -62,10 +62,10 @@ class Embedder:
                             min_count=self.doc2vec_params['min_count'],
                             dm=self.doc2vec_params['dm'])
 
-            self.doc2vec_model.build_vocab(tagged_data)
+            self.doc2vec_model.build_vocab(self.tagged_data)
 
             for epoch in tqdm(range(self.doc2vec_params['epochs'])):
-                self.doc2vec_model.train(tagged_data,
+                self.doc2vec_model.train(self.tagged_data,
                             total_examples=self.doc2vec_model.corpus_count,
                             epochs=self.doc2vec_model.epochs)
                 # LR scheduling
