@@ -27,7 +27,10 @@ class Embedder:
 
     detokenizer = TreebankWordDetokenizer()
 
-    def __init__(self, d2v_trial_name, d2v_params, train_data, corpus_column):
+    def __init__(self, d2v_trial_name, d2v_params, train_data, corpus_column, infer_params={
+        'alpha': 0.03,
+        'steps': 128
+    }):
         self.train_df = train_data
         self.corpus = list(train_data[corpus_column])
 
@@ -38,6 +41,9 @@ class Embedder:
 
         self.doc2vec_params = d2v_params
         self.autofill_params()
+
+        # parameters for inference
+        self.infer_params = infer_params
 
         self.doc2vec_model = None
         self.tfidf_model = None
@@ -81,10 +87,13 @@ class Embedder:
         self.doc2vec_model = Doc2Vec.load(self.curr_model_name)
         print("Model {} Loaded".format(self.curr_model_name))
 
-    @staticmethod
-    def get_doc2vec_embeddings(occ, embedder, steps=128, alpha=0.03):
+    def get_doc2vec_embeddings(self, occ):
         test_data = word_tokenize(occ)
-        test_vector = embedder.doc2vec_model.infer_vector(test_data, steps=steps, alpha=alpha)
+        test_vector = self.doc2vec_model.infer_vector(
+            test_data,
+            steps=self.infer_params['steps'],
+            alpha=self.infer_params['alpha']
+        )
         return test_vector
 
     def get_occ_and_code_from_tokens(self, training_doc):
@@ -106,7 +115,7 @@ class Embedder:
         :return:
         """
 
-        job_vector = Embedder.get_doc2vec_embeddings(str_input, self)
+        job_vector = self.get_doc2vec_embeddings(str_input)
 
         # to find most similar doc using tags
         similar_doc = self.doc2vec_model.docvecs.most_similar([job_vector])
@@ -142,16 +151,15 @@ class Embedder:
 
         return pd.Series([v1, v2, v3])
 
-    @staticmethod
-    def infer_and_vote(occ, embedder, verbose=False):
+    def infer_and_vote(self, occ, verbose=False):
         """
         :param embedder: An INSTANCE of embedder class
         :param occ:
         :param verbose:
         :return:
         """
-        counter = embedder.infer_doc2vec(occ, verbose=verbose)
-        return embedder.process_votes(counter)
+        counter = self.infer_doc2vec(occ, verbose=verbose)
+        return self.process_votes(counter)
 
     def load_tfidf_model(self):
         if self.tfidf_model is None:
@@ -170,12 +178,19 @@ class Embedder:
         print("TF-IDF training vector shape", vectorized_X_train.shape)
         return vectorized_X_train
 
-    @staticmethod
-    def get_tfidf_embeddings(embedder, data):
+    def get_tfidf_embeddings(self, data):
         # Transform new data using existing TFIDF model
-        test_vector = embedder.tfidf_model.transform(data)
+        test_vector = self.tfidf_model.transform(data)
         return test_vector
 
     @staticmethod
     def vectorize_embeddings(data):
         return np.array([list(x) for x in np.array(data)])
+
+    def apply_fx(self, data, fx, args):
+        # TODO test, incomplete
+
+        ret = []
+        for i, r in data.itertuples():
+            ret.append(self.fx())
+        return ret
