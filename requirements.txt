@@ -1,6 +1,5 @@
 gensim
 imbalanced-learn 
-imblearn 
 joblib
 jupyter
 matplotlib
