@@ -108,6 +108,7 @@ class TextPreprocessor:
         occurrences = 0
         for occupation in string.split(';'):
             if char in occupation:
+                print(occupation)
                 occurrences += 1
 
         if char in TextPreprocessor.char_occurences:

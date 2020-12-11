@@ -9,6 +9,7 @@ from collections import Counter
 import pandas as pd
 import os
 import numpy as np
+from joblib import dump, load
 
 import nltk
 nltk.download('punkt')
@@ -167,14 +168,14 @@ class Embedder:
 
     def train_tfidf(self):
         # for effient load an dstore of objects w/ large numpy arrays internally
-        from joblib import dump, load
+
         # Remove highly uncommon word (freq < 5) from corpus to reduce dimensionality
         self.tfidf_model = TfidfVectorizer(min_df=5,
                                           stop_words="english",
                                           lowercase=True)
 
-        dump(self.tfidf_model, 'vectorizer.joblib')
         vectorized_X_train = self.tfidf_model.fit_transform(self.corpus)
+        dump(self.tfidf_model, 'vectorizer.joblib')
         print("TF-IDF training vector shape", vectorized_X_train.shape)
         return vectorized_X_train
 
@@ -194,3 +195,19 @@ class Embedder:
         for i, r in data.itertuples():
             ret.append(self.fx())
         return ret
+
+    @staticmethod
+    def ensemble_predict(row, predictor_cols, default_predictor):
+
+        # find majority vote for all methods, :-1 drops ground truth column
+        votes = Counter(row[predictor_cols]).most_common(1)
+
+        # take svm as tie-breaker because CURRENTLY most accurate
+        winning_class, highest_num_votes = votes[0]
+        return winning_class
+
+    @staticmethod
+    def check_exact_match(row, reference_df):
+        exact_matches = reference_df.loc[reference_df['input'] == str(row)]
+        code = exact_matches['code'].values[0] if len(exact_matches) == 1 else -1
+        return code
