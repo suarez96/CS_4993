@@ -1,0 +1,16 @@
+gensim
+imbalanced-learn 
+imblearn 
+joblib
+jupyter
+matplotlib
+numpy
+pandas
+patsy
+pip 
+plotly
+scikit-learn
+scipy
+seaborn
+statsmodels
+tqdm
