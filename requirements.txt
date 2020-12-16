@@ -3,6 +3,7 @@ imbalanced-learn
 joblib
 jupyter
 matplotlib
+nltk
 numpy
 pandas
 patsy
