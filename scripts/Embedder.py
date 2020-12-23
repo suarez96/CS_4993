@@ -10,6 +10,7 @@ import pandas as pd
 import os
 import numpy as np
 from joblib import dump, load
+from collections import Counter
 
 import nltk
 nltk.download('punkt')
@@ -17,6 +18,88 @@ nltk.download('punkt')
 
 class Embedder:
 
+    def __init__(self, database_file='./Data/doc2vec_train_set.csv'):
+        self.train_database = pd.DataFrame(pd.read_csv(database_file))
+
+    def embed(self):
+        return
+
+    def train(self):
+        return
+
+    def load(self):
+        return
+
+    @staticmethod
+    def check_exact_match(row, reference_df):
+        exact_matches = reference_df.loc[reference_df['input'] == str(row)]
+        code = exact_matches['code'].values[0] if len(exact_matches) == 1 else -1
+        return code
+
+    @staticmethod
+    def vectorize_embeddings(data):
+        return np.array([list(x) for x in np.array(data)])
+
+    def apply_fx(self, data, fx, args):
+        # TODO test, incomplete
+
+        ret = []
+        for i, r in data.itertuples():
+            ret.append(self.fx())
+        return ret
+
+
+class tfidfEmbedder(Embedder):
+
+    def __init__(self, model_path='./vectorizer.joblib', training=False, corpus=None):
+        super().__init__()
+        self.tfidf_model = None
+        if training:
+            assert corpus is not None, "Null Training Corpus. Define before continuing."
+            self.train()
+        else:
+            if os.path.exists(model_path):
+                self.load(model_path)
+            else:
+                print("Path to model not found. Load model manually with load(<path>) before performing inference")
+
+    def load(self, path):
+        if self.tfidf_model is None:
+            self.tfidf_model = load(path)
+            print("Model loaded from {}".format(path))
+        else:
+            print("Model already loaded")
+
+    def train(self):
+        # for effient load an dstore of objects w/ large numpy arrays internally
+
+        # Remove highly uncommon word (freq < 5) from corpus to reduce dimensionality
+        self.tfidf_model = TfidfVectorizer(min_df=5,
+                                           stop_words="english",
+                                           lowercase=True)
+
+        vectorized_X_train = self.tfidf_model.fit_transform(self.corpus)
+        dump(self.tfidf_model, 'vectorizer.joblib')
+        print("TF-IDF training vector shape", vectorized_X_train.shape)
+        return vectorized_X_train
+
+    @staticmethod
+    def ensemble_predict(row, predictor_cols, default_predictor):
+
+        # find majority vote for all methods, :-1 drops ground truth column
+        votes = Counter(row[predictor_cols]).most_common(1)
+
+        # take svm as tie-breaker because CURRENTLY most accurate
+        winning_class, highest_num_votes = votes[0]
+        return row[default_predictor] if highest_num_votes < 2 else winning_class
+
+    def embed(self, data):
+        # Transform new data using existing TFIDF model
+        test_vector = self.tfidf_model.transform(data)
+        return test_vector
+
+
+class Doc2VecEmbedder(Embedder):
     default_doc2vec_params = {
         'vec_size': 32,
         'alpha': 0.001,
@@ -32,6 +115,7 @@ class Embedder:
         'alpha': 0.03,
         'steps': 128
     }):
+        super().__init__()
         self.train_df = train_data
         self.corpus = list(train_data[corpus_column])
 
@@ -47,7 +131,6 @@ class Embedder:
         self.infer_params = infer_params
 
         self.doc2vec_model = None
-        self.tfidf_model = None
 
     def autofill_params(self):
         for k, v in Embedder.default_doc2vec_params.items():
@@ -57,7 +140,7 @@ class Embedder:
 
         assert 'epochs' in self.doc2vec_params, "Must specify epochs hyperparameter!"
 
-    def train_doc2vec(self):
+    def train(self):
         try:
             assert not os.path.exists(self.curr_model_name), "Model {} already exists! Update model output name".format(
                 self.curr_model_name)
@@ -84,11 +167,11 @@ class Embedder:
         except AssertionError:
             print("Existing Model {} Found".format(self.curr_model_name))
 
-    def load_doc2vec_model(self):
+    def load(self):
         self.doc2vec_model = Doc2Vec.load(self.curr_model_name)
         print("Model {} Loaded".format(self.curr_model_name))
 
-    def get_doc2vec_embeddings(self, occ):
+    def embed(self, occ):
         test_data = word_tokenize(occ)
         test_vector = self.doc2vec_model.infer_vector(
             test_data,
@@ -109,14 +192,14 @@ class Embedder:
 
         return detokenized_job, code
 
-    def infer_doc2vec(self, str_input, verbose=False):
+    def infer(self, str_input, verbose=False):
         """
         :param str_input:
         :param verbose:
         :return:
         """
 
-        job_vector = self.get_doc2vec_embeddings(str_input)
+        job_vector = self.embed(str_input)
 
         # to find most similar doc using tags
         similar_doc = self.doc2vec_model.docvecs.most_similar([job_vector])
@@ -159,55 +242,5 @@ class Embedder:
         :param verbose:
         :return:
         """
-        counter = self.infer_doc2vec(occ, verbose=verbose)
+        counter = self.infer(occ, verbose=verbose)
         return self.process_votes(counter)
-
-    def load_tfidf_model(self):
-        if self.tfidf_model is None:
-            self.tfidf_model = load('vectorizer.joblib')
-
-    def train_tfidf(self):
-        # for effient load an dstore of objects w/ large numpy arrays internally
-
-        # Remove highly uncommon word (freq < 5) from corpus to reduce dimensionality
-        self.tfidf_model = TfidfVectorizer(min_df=5,
-                                          stop_words="english",
-                                          lowercase=True)
-
-        vectorized_X_train = self.tfidf_model.fit_transform(self.corpus)
-        dump(self.tfidf_model, 'vectorizer.joblib')
-        print("TF-IDF training vector shape", vectorized_X_train.shape)
-        return vectorized_X_train
-
-    def get_tfidf_embeddings(self, data):
-        # Transform new data using existing TFIDF model
-        test_vector = self.tfidf_model.transform(data)
-        return test_vector
-
-    @staticmethod
-    def vectorize_embeddings(data):
-        return np.array([list(x) for x in np.array(data)])
-
-    def apply_fx(self, data, fx, args):
-        # TODO test, incomplete
-
-        ret = []
-        for i, r in data.itertuples():
-            ret.append(self.fx())
-        return ret
-
-    @staticmethod
-    def ensemble_predict(row, predictor_cols, default_predictor):
-
-        # find majority vote for all methods, :-1 drops ground truth column
-        votes = Counter(row[predictor_cols]).most_common(1)
-
-        # take svm as tie-breaker because CURRENTLY most accurate
-        winning_class, highest_num_votes = votes[0]
-        return winning_class
-
-    @staticmethod
-    def check_exact_match(row, reference_df):
-        exact_matches = reference_df.loc[reference_df['input'] == str(row)]
-        code = exact_matches['code'].values[0] if len(exact_matches) == 1 else -1
-        return code
