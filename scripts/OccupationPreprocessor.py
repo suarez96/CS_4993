@@ -76,7 +76,11 @@ class OccupationPreprocessor:
             'xlsx':pd.read_excel
         }
 
-        ext = file_or_df.split('.')[-1]
+        # check if dataframe was passed or a file name
+        if isinstance(file_or_df, pd.DataFrame):
+            ext = None
+        else:
+            ext = file_or_df.split('.')[-1]
 
         if ext in read_functions.keys():
             df = read_functions[ext](file_or_df)
@@ -85,7 +89,7 @@ class OccupationPreprocessor:
 
         # strip single quotes
         df['code'] = df[code_column].apply(
-            lambda x: x.strip('\'')
+            lambda x: str(x).strip('\'')
         )
         # take double coded inputs and take the first one
         df['code'] = df['code'].apply(
