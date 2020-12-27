@@ -5,7 +5,7 @@ import plotly.express as px
 import numpy as np
 import matplotlib.pyplot as plt
 import os
-from scripts.TextPreprocessor import TextPreprocessor
+from TextPreprocessor import TextPreprocessor
 
 
 class OccupationPreprocessor:
