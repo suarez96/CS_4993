@@ -11,6 +11,7 @@ import os
 import numpy as np
 from joblib import dump, load
 from collections import Counter
+from scripts.OccupationPreprocessor import OccupationPreprocessor
 
 import nltk
 nltk.download('punkt')
@@ -93,6 +94,7 @@ class tfidfEmbedder(Embedder):
         winning_class, highest_num_votes = votes[0]
         return row[default_predictor] if highest_num_votes < 2 else winning_class
 
+
     def embed(self, data):
         # Transform new data using existing TFIDF model
         test_vector = self.tfidf_model.transform(data)
@@ -100,6 +102,7 @@ class tfidfEmbedder(Embedder):
 
 
 class Doc2VecEmbedder(Embedder):
+
     default_doc2vec_params = {
         'vec_size': 32,
         'alpha': 0.001,
@@ -109,28 +112,34 @@ class Doc2VecEmbedder(Embedder):
         'dm': 1
     }
 
-    detokenizer = TreebankWordDetokenizer()
-
-    def __init__(self, d2v_trial_name, d2v_params, train_data, corpus_column, infer_params={
-        'alpha': 0.03,
-        'steps': 128
-    }):
+    def __init__(self, model_name='trial_11.model', d2v_params={}, train_data=None, corpus_column="input", training=False,
+                 infer_params={'alpha': 0.03, 'steps': 128}, corpus=None):
         super().__init__()
-        self.train_df = train_data
-        self.corpus = list(train_data[corpus_column])
 
-        self.tagged_data = [TaggedDocument(words=word_tokenize(item.lower()),
-                                           tags=[str(i)]) for i, item in enumerate(self.corpus)]
-
-        self.curr_model_name = "{}.model".format(d2v_trial_name)
-
-        self.doc2vec_params = d2v_params
-        self.autofill_params()
+        self.model_name = model_name
 
         # parameters for inference
         self.infer_params = infer_params
 
         self.doc2vec_model = None
+
+        self.detokenizer = TreebankWordDetokenizer()
+
+        assert train_data is not None, print(
+            "For both inference and training, you must specify the training dataframe" +
+            "and the column in that dataframe used to build the corpus (the default column is \'input\')."
+        )
+
+        self.train_df = train_data
+        self.corpus = list(self.train_df[corpus_column])
+        self.tagged_data = [TaggedDocument(words=word_tokenize(item.lower()),
+                                           tags=[str(i)]) for i, item in enumerate(self.corpus)]
+
+        if training:
+            self.doc2vec_params = d2v_params
+            self.autofill_params()
+        else:
+            self.load()
 
     def autofill_params(self):
         for k, v in Embedder.default_doc2vec_params.items():
@@ -142,8 +151,8 @@ class Doc2VecEmbedder(Embedder):
 
     def train(self):
         try:
-            assert not os.path.exists(self.curr_model_name), "Model {} already exists! Update model output name".format(
-                self.curr_model_name)
+            assert not os.path.exists(self.model_name), "Model {} already exists! Update model output name".format(
+                self.model_name)
 
             self.doc2vec_model = Doc2Vec(vector_size=self.doc2vec_params['vec_size'],
                             alpha=self.doc2vec_params['alpha'],
@@ -161,15 +170,15 @@ class Doc2VecEmbedder(Embedder):
                 # LR scheduling
                 self.doc2vec_model.alpha -= 0.00002
 
-            self.doc2vec_model.save(self.curr_model_name)
-            print("Model {} Saved".format(self.curr_model_name))
+            self.doc2vec_model.save(self.model_name)
+            print("Model {} Saved".format(self.model_name))
 
         except AssertionError:
-            print("Existing Model {} Found".format(self.curr_model_name))
+            print("Existing Model {} Found".format(self.model_name))
 
     def load(self):
-        self.doc2vec_model = Doc2Vec.load(self.curr_model_name)
-        print("Model {} Loaded".format(self.curr_model_name))
+        self.doc2vec_model = Doc2Vec.load(self.model_name)
+        print("Doc2vec model succesfully loaded from {}".format(self.model_name))
 
     def embed(self, occ):
         test_data = word_tokenize(occ)
@@ -186,28 +195,28 @@ class Doc2VecEmbedder(Embedder):
         """
         tokens = self.tagged_data[int(training_doc[0])][0]
 
-        detokenized_job = Embedder.detokenizer.detokenize(tokens).replace(" )", ")")
+        detokenized_job = self.detokenizer.detokenize(tokens).replace(" )", ")")
 
         code = int(self.train_df.iloc[int(training_doc[0])]['code'])
 
         return detokenized_job, code
 
-    def infer(self, str_input, verbose=False):
+    def single_inference(self, model_input, verbose):
         """
         :param str_input:
         :param verbose:
         :return:
         """
 
-        job_vector = self.embed(str_input)
+        job_vector = self.embed(model_input)
 
         # to find most similar doc using tags
-        similar_doc = self.doc2vec_model.docvecs.most_similar([job_vector])
+        similar_doc = self.doc2vec_model.docvecs.most_similar([job_vector], topn=50)
 
         codes = []
 
         if verbose:
-            print('---------Test on {}---------'.format(str_input))
+            print('---------Test on {}---------'.format(model_input))
 
         for doc in similar_doc:
 
@@ -218,7 +227,24 @@ class Doc2VecEmbedder(Embedder):
             if verbose:
                 print('{} - {}'.format(job, code))
 
-        return Counter(codes)
+        return codes
+
+    def infer(self, model_input, verbose=False):
+
+        if type(model_input) == str:
+            model_input = pd.DataFrame(pd.Series(model_input), columns=['input'])
+
+        elif type(model_input) != pd.DataFrame:
+            model_input = pd.DataFrame(list(model_input), columns=['input'])
+
+        pred = []
+
+        for row in model_input.itertuples():
+            pred.append(
+                self.single_inference(row.input, verbose)
+            )
+
+        return pred
 
     def process_votes(self, counter):
 
@@ -235,6 +261,72 @@ class Doc2VecEmbedder(Embedder):
 
         return pd.Series([v1, v2, v3])
 
+    @staticmethod
+    def hyperbolic_scoring(pred, level, topn, level_constraint=""):
+        """
+        :param pred: array of predictions produced by the 'infer' method
+        :param level: the level of the hierarchy at which we want to predict
+        :param topn: how many of the top 100 (the number of predictions always returned by 'infer') predictions
+        we want to use to calculate the scoring
+        :param level_constraint: the prediction of a higher level, used to filter out extraneous predictions at lower
+        levels of the hierarchy
+        :return: list of tuples of type (predicted class, score), sorted from highest to lowest score
+        """
+        scores = {}
+        for idx, pred in enumerate(pred[:topn]):
+
+            # turn prediction into string
+            pred_first_n_digits = OccupationPreprocessor.first_n_digits(pred, level)
+
+            # if the level constraint doesn't match the first n digits of the lower-level prediction, we skip
+            if level_constraint != "" and str(pred_first_n_digits)[:len(level_constraint)] != str(level_constraint):
+                continue
+
+            if pred_first_n_digits in scores:
+                scores[pred_first_n_digits] += 1 / (idx + 2)
+            else:
+                scores[pred_first_n_digits] = 1 / (idx + 2)
+
+        if scores:
+            return [(k, v) for k, v in sorted(scores.items(), key=lambda item: item[1], reverse=True)]
+        else:
+            return [(-1, 1.0)]
+
+    def score_predictions(self, preds, level, topn, level_constraints=[]):
+        """
+
+        :param pred: list of top 50 doc2vec predictions
+        :param level:
+        :param topn:
+        :param level_constraint: list of constraints for each sample
+        :return:
+        """
+
+        if not level_constraints:
+            level_constraints = ["" for pred in preds]
+
+        # if single prediction
+        if not any(isinstance(i, list) for i in preds):
+            preds = pd.DataFrame({'input': preds})
+
+        # multi prediction
+        elif type(preds) != pd.DataFrame:
+            preds_df = []
+            for pred, constraint in zip(preds, level_constraints):
+                preds_df.append({'input': pred, 'level_constraint':constraint})
+            preds = pd.DataFrame(preds_df)
+
+        scores = []
+
+        for pred in preds:
+            scores.append(
+                self.hyperbolic_scoring(pred, level, topn, level_constraint)[0][0]
+            )
+
+        return scores
+
+
+
     def infer_and_vote(self, occ, verbose=False):
         """
         :param embedder: An INSTANCE of embedder class
@@ -242,5 +334,5 @@ class Doc2VecEmbedder(Embedder):
         :param verbose:
         :return:
         """
-        counter = self.infer(occ, verbose=verbose)
+        counter = Counter(self.infer(occ, verbose=verbose))
         return self.process_votes(counter)
