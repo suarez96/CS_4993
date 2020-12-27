@@ -3,6 +3,13 @@ import pandas as pd
 from scripts.Embedder import Embedder, Doc2VecEmbedder, tfidfEmbedder
 from scripts.OccupationPreprocessor import OccupationPreprocessor
 import numpy as np
+import argparse
+
+parser = argparse.ArgumentParser()
+
+parser.add_argument('-t', '--test_set', type=str, help="Path to test set csv file")
+parser.add_argument('-i', '--input_column', type=str, help="Column specifying job titles", default="input")
+parser.add_argument('-c', '--code_column', type=str, help="Column specifying NOC codes", default="code")
 
 d2v_train_df=OccupationPreprocessor.prepare_df(
             './Data/doc2vec_train_set.csv',
@@ -24,15 +31,15 @@ if __name__ == '__main__':
 
     tfidf_test_df = OccupationPreprocessor.prepare_df(
         args.test_set,  # './Data/overlap_test_set_v4_acanoc_no_train_data.csv',
-        input_column='input',
-        code_column='code',
+        input_column=args.input_column,
+        code_column=args.code_columns,
         preprocess_text=False
     )
 
     d2v_test_df = OccupationPreprocessor.prepare_df(
         args.test_set,  # './Data/overlap_test_set_v4_acanoc_no_train_data.csv',
-        input_column='input',
-        code_column='code',
+        input_column=args.input_column,
+        code_column=args.code_columns,
         preprocess_text=True
     )
 
