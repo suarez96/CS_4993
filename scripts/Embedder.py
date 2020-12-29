@@ -87,7 +87,7 @@ class tfidfEmbedder(Embedder):
     @staticmethod
     def ensemble_predict(row, predictor_cols, default_predictor):
 
-        # find majority vote for all methods, :-1 drops ground truth column
+        # find majority vote for all methods
         votes = Counter(row[predictor_cols]).most_common(1)
 
         # take svm as tie-breaker because CURRENTLY most accurate
@@ -113,7 +113,7 @@ class Doc2VecEmbedder(Embedder):
     }
 
     def __init__(self, model_path='../trial_11.model', d2v_params={}, train_data=None, corpus_column="input", training=False,
-                 infer_params={'alpha': 0.03, 'steps': 128}):
+                 infer_params={'alpha': 0.03, 'steps': 128}, scoring="hyper"):
         super().__init__()
 
         self.model_path = model_path
@@ -122,6 +122,10 @@ class Doc2VecEmbedder(Embedder):
         self.infer_params = infer_params
 
         self.doc2vec_model = None
+
+        # method of scoring
+        self.scoring = scoring.lower()
+        assert self.scoring in ['hyper', 'count'], "Scoring Mode must be one of \'Hyper\' or\'Count\'."
 
         self.detokenizer = TreebankWordDetokenizer()
 
@@ -262,7 +266,7 @@ class Doc2VecEmbedder(Embedder):
         return pd.Series([v1, v2, v3])
 
     @staticmethod
-    def hyperbolic_scoring(row, level, topn):
+    def hyperbolic_scoring(row, level, topn, scoring):
         """
         :param pred: array of predictions produced by the 'infer' method
         :param level: the level of the hierarchy at which we want to predict
@@ -275,6 +279,8 @@ class Doc2VecEmbedder(Embedder):
         scores = {}
         pred = row['pred']
         constraint = row['level_constraint']
+        # denominator is 1 if scoring mode is count, otherwise it is the index + 2
+        scaling_factor = (lambda x: x**0) if scoring == "count" else (lambda x: x+2)
         for idx, pred in enumerate(pred[:topn]):
 
             # turn prediction into string
@@ -285,9 +291,9 @@ class Doc2VecEmbedder(Embedder):
                 continue
 
             if pred_first_n_digits in scores:
-                scores[pred_first_n_digits] += 1 / (idx + 2)
+                scores[pred_first_n_digits] += 1 / scaling_factor(idx)
             else:
-                scores[pred_first_n_digits] = 1 / (idx + 2)
+                scores[pred_first_n_digits] = 1 / scaling_factor(idx)
 
         if scores:
             return [(k, v) for k, v in sorted(scores.items(), key=lambda item: item[1], reverse=True)][0][0]
@@ -317,7 +323,7 @@ class Doc2VecEmbedder(Embedder):
                 preds_df.append({'pred': pred, 'level_constraint':constraint})
             preds = pd.DataFrame(preds_df)
 
-        scores = preds.apply(Doc2VecEmbedder.hyperbolic_scoring, axis = 1, args=(level, topn,))
+        scores = preds.apply(Doc2VecEmbedder.hyperbolic_scoring, axis = 1, args=(level, topn, self.scoring))
 
         return scores
 

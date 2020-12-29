@@ -124,5 +124,17 @@ if __name__ == '__main__':
     print('Predictions:\n', prediction_df[['input', 'p_all_234', 'code']].head(5))
 
     if not args.one_inference:
-        print('Accuracy:\n', accuracy_score(prediction_df['p_all_234'].astype(int), prediction_df['code'].astype(int)))
+        print(
+            'Accuracy (Micro-F1):\n', accuracy_score(
+                prediction_df['p_all_234'].astype(int),
+                prediction_df['code'].astype(int)
+            )
+        )
+        print(
+            'Macro-F1:\n', f1_score(
+                prediction_df['p_all_234'].astype(int),
+                prediction_df['code'].astype(int),
+                average='macro'
+            )
+        )
 
