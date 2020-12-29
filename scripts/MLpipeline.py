@@ -2,16 +2,20 @@ import pickle
 import pandas as pd
 from Embedder import Embedder, Doc2VecEmbedder, tfidfEmbedder
 from OccupationPreprocessor import OccupationPreprocessor
+from TextPreprocessor import TextPreprocessor
 import numpy as np
 import argparse
 from sklearn.metrics import accuracy_score
 
 parser = argparse.ArgumentParser()
 
-parser.add_argument('-t', '--test_set', type=str, help="Path to test set csv file")
+parser.add_argument('-t', '--test_set', type=str, help="Path to test set csv file. Necessary when one_inference flag not set.")
+parser.add_argument('-j', '--job', type=str, help="Job title for single inference. Necessary when one_inference flag set.")
 parser.add_argument('-i', '--input_column', type=str, help="Column specifying job titles", default="input")
 parser.add_argument('-c', '--code_column', type=str, help="Column specifying NOC codes", default="code")
-parser.add_argument('-s', '--sample_size', type=int, help="Sample size taken randomly from test set", default=5)
+parser.add_argument('-s', '--sample_size', type=int, help="Sample size taken randomly from test set", default=-1)
+parser.add_argument('-o', '--one_inference', action='store_true')
+parser.add_argument('-d', '--doc2vec_model', type=str, help="Path to doc2vec .model file", default="../trial_11.model")
 
 args = parser.parse_args()
 
@@ -24,7 +28,7 @@ d2v_train_df=OccupationPreprocessor.prepare_df(
 
 if __name__ == '__main__':
 
-    # TODO, work for single sample
+    # TODO, print the title alongside the NOC code to see if makes sense
     # TODO, make a top 5
 
     with open('../first_dig_tfidf_clfs.pkl', 'rb') as f:
@@ -33,34 +37,46 @@ if __name__ == '__main__':
     with open('../second_third_fourth_dig_tfidf_clfs.pkl', 'rb') as f2:
         clf2=pickle.load(f2)
 
-    tfidf_test_df = OccupationPreprocessor.prepare_df(
-        args.test_set,  # './Data/overlap_test_set_v4_acanoc_no_train_data.csv',
-        input_column=args.input_column,
-        code_column=args.code_column,
-        preprocess_text=False
-    )
+    if args.one_inference:
+        tfidf_input = pd.DataFrame({
+            'input': [args.job],
+            'code': [-1]
+        })
 
-    d2v_test_df = OccupationPreprocessor.prepare_df(
-        args.test_set,  # './Data/overlap_test_set_v4_acanoc_no_train_data.csv',
-        input_column=args.input_column,
-        code_column=args.code_column,
-        preprocess_text=True
-    )
+        d2v_input = pd.DataFrame({
+            'input': [TextPreprocessor.preprocess_text(args.job)],
+            'code': [-1]
+        })
 
-    assert len(d2v_test_df) == len(tfidf_test_df), "Test set lengths do not match"
+    else:
+        tfidf_input = OccupationPreprocessor.prepare_df(
+            args.test_set,  # './Data/overlap_test_set_v4_acanoc_no_train_data.csv',
+            input_column=args.input_column,
+            code_column=args.code_column,
+            preprocess_text=False
+        )
 
-    d2vembedder = Doc2VecEmbedder(train_data=d2v_train_df, infer_params={
+        d2v_input = OccupationPreprocessor.prepare_df(
+            args.test_set,  # './Data/overlap_test_set_v4_acanoc_no_train_data.csv',
+            input_column=args.input_column,
+            code_column=args.code_column,
+            preprocess_text=True
+        )
+
+    assert len(d2v_input) == len(tfidf_input), "Test set lengths do not match"
+
+    d2vembedder = Doc2VecEmbedder(model_path=args.doc2vec_model, train_data=d2v_train_df, infer_params={
         'steps': 2048,
         'alpha': 0.03
     })
 
     tfidfembedder = tfidfEmbedder()
 
-    tfidf_input = tfidf_test_df.sample(args.sample_size, random_state=123)
+    if args.sample_size != -1 and not args.one_inference:
+        tfidf_input = tfidf_input.sample(args.sample_size, random_state=123)
+        d2v_input = d2v_input.sample(args.sample_size, random_state=123)
 
     tfidf_test_vectors = tfidfembedder.embed(tfidf_input['input'])
-
-    d2v_input = d2v_test_df.sample(args.sample_size, random_state=123)
 
     assert len(tfidf_input) == len(d2v_input)
 
@@ -106,4 +122,7 @@ if __name__ == '__main__':
     ))
 
     print('Predictions:\n', prediction_df[['input', 'p_all_234', 'code']].head(5))
-    print('Accuracy:\n', accuracy_score(prediction_df['p_all_234'].astype(int), prediction_df['code'].astype(int)))
+
+    if not args.one_inference:
+        print('Accuracy:\n', accuracy_score(prediction_df['p_all_234'].astype(int), prediction_df['code'].astype(int)))
+

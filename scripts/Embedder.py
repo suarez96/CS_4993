@@ -113,7 +113,7 @@ class Doc2VecEmbedder(Embedder):
     }
 
     def __init__(self, model_path='../trial_11.model', d2v_params={}, train_data=None, corpus_column="input", training=False,
-                 infer_params={'alpha': 0.03, 'steps': 128}, corpus=None):
+                 infer_params={'alpha': 0.03, 'steps': 128}):
         super().__init__()
 
         self.model_path = model_path
