@@ -5,7 +5,11 @@ from OccupationPreprocessor import OccupationPreprocessor
 from TextPreprocessor import TextPreprocessor
 import numpy as np
 import argparse
-from sklearn.metrics import accuracy_score
+import os
+from sklearn.metrics import accuracy_score, f1_score
+from tqdm import tqdm
+
+tqdm.pandas()
 
 parser = argparse.ArgumentParser()
 
@@ -19,14 +23,16 @@ parser.add_argument('-d', '--doc2vec_model', type=str, help="Path to doc2vec .mo
 
 args = parser.parse_args()
 
-d2v_train_df=OccupationPreprocessor.prepare_df(
-            '../Data/doc2vec_train_set.csv',
-            input_column='input',
-            code_column='code',
-            preprocess_text=True
-        )
-
 if __name__ == '__main__':
+
+    assert os.path.split(os.getcwd())[-1] == 'scripts', "Please run again from the 'scripts' directory"
+
+    d2v_train_df = OccupationPreprocessor.prepare_df(
+        '../Data/doc2vec_train_set.csv',
+        input_column='input',
+        code_column='code',
+        preprocess_text=True
+    )
 
     # TODO, print the title alongside the NOC code to see if makes sense
     # TODO, make a top 5
@@ -90,23 +96,28 @@ if __name__ == '__main__':
         'code': d2v_input['code'].astype(str)
     })
 
+    if 'v4_pred' in d2v_input.columns:
+        prediction_df['acanoc_pred'] = d2v_input['v4_pred']
+
     prediction_df['d2v_pred'] = d2vembedder.score_predictions(d2v_predictions, level=1, topn=10)
 
-    prediction_df['exact_match'] = d2v_input['input'].apply(d2vembedder.check_exact_match,
+    print("Searching for exact matches in database...")
+    prediction_df['exact_match'] = d2v_input['input'].progress_apply(d2vembedder.check_exact_match,
                                                                      args=(d2vembedder.train_database,))
 
-    prediction_df['p_all_1'] = prediction_df.apply(tfidfEmbedder.ensemble_predict, axis=1, args=(
+    print("Predicting on first level...")
+    prediction_df['p_all_1'] = prediction_df.progress_apply(tfidfEmbedder.ensemble_predict, axis=1, args=(
         ['rf_pred', 'svm_pred', 'knn_pred', 'd2v_pred'], 'svm_pred',
     ))
 
     prediction_df['vectors'] = tfidf_test_vectors.toarray().tolist()
 
-    def pipeline(row):
+    def pipeline(row, prev_level_col, svm_out_col, rf_out_col, knn_out_col):
         np_array = np.array(row['vectors']).reshape(1, -1)
-        p_1 = row['p_all_1']
-        row['svm_pred_234'] = clf2[p_1]['SVM'].predict(np_array)[0]
-        row['rf_pred_234'] = clf2[p_1]['RF'].predict(np_array)[0]
-        row['knn_pred_234'] = clf2[p_1]['KNN'].predict(np_array)[0]
+        p_1 = row[prev_level_col]
+        row[svm_out_col] = clf2[p_1]['SVM'].predict(np_array)[0]
+        row[rf_out_col] = clf2[p_1]['RF'].predict(np_array)[0]
+        row[knn_out_col] = clf2[p_1]['KNN'].predict(np_array)[0]
         return row
 
     prediction_df['d2v_pred_234'] = d2vembedder.score_predictions(
@@ -115,15 +126,28 @@ if __name__ == '__main__':
         topn=30
     )
 
-    prediction_df = prediction_df.apply(pipeline, axis = 1)
+    print("Predicting on second level...")
+    prediction_df = prediction_df.progress_apply(
+        pipeline, axis=1, args=('p_all_1', 'svm_pred_234', 'rf_pred_234', 'knn_pred_234',)
+    )
 
-    prediction_df['p_all_234'] = prediction_df.apply(tfidfEmbedder.ensemble_predict, axis=1, args=(
+    print("Combining Doc2Vec and TFIDF predictions")
+    prediction_df['p_all_234'] = prediction_df.progress_apply(tfidfEmbedder.ensemble_predict, axis=1, args=(
         ['svm_pred_234', 'rf_pred_234', 'knn_pred_234', 'd2v_pred_234'], 'knn_pred_234',
     ))
 
     print('Predictions:\n', prediction_df[['input', 'p_all_234', 'code']].head(5))
 
     if not args.one_inference:
+        if not os.path.exists('../output/'):
+            os.mkdir('../output/')
+            print('output directory created')
+        test_file_name_stripped = args.test_set.split('/')[-1]
+        # write out file
+        prediction_df.drop(columns=['vectors']).to_csv('../output/ML_pipeline_out_sample_{}_{}'.format(
+            args.sample_size,
+            test_file_name_stripped
+        ), index=False)
         print(
             'Accuracy (Micro-F1):\n', accuracy_score(
                 prediction_df['p_all_234'].astype(int),
