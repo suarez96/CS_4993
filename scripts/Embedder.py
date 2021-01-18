@@ -22,14 +22,14 @@ class Embedder:
     def __init__(self, database_file='../Data/doc2vec_train_set.csv'):
         self.train_database = pd.DataFrame(pd.read_csv(database_file))
 
-    def embed(self):
-        return
+    def embed(self, data):
+        raise NotImplementedError
 
     def train(self):
-        return
+        raise NotImplementedError
 
     def load(self):
-        return
+        raise NotImplementedError
 
     @staticmethod
     def check_exact_match(row, reference_df):
@@ -88,12 +88,14 @@ class tfidfEmbedder(Embedder):
     def ensemble_predict(row, predictor_cols, default_predictor):
 
         # find majority vote for all methods
-        votes = Counter(row[predictor_cols]).most_common(1)
+        counter = Counter(row[predictor_cols])
+        if -1 in counter:
+            counter[-1] = 0
+        votes = counter.most_common(1)
 
         # take svm as tie-breaker because CURRENTLY most accurate
         winning_class, highest_num_votes = votes[0]
         return row[default_predictor] if highest_num_votes < 2 else winning_class
-
 
     def embed(self, data):
         # Transform new data using existing TFIDF model
@@ -266,7 +268,7 @@ class Doc2VecEmbedder(Embedder):
         return pd.Series([v1, v2, v3])
 
     @staticmethod
-    def hyperbolic_scoring(row, level, topn, scoring):
+    def hyperbolic_scoring(row, level, topn, scoring, return_size=5):
         """
         :param pred: array of predictions produced by the 'infer' method
         :param level: the level of the hierarchy at which we want to predict
@@ -295,12 +297,21 @@ class Doc2VecEmbedder(Embedder):
             else:
                 scores[pred_first_n_digits] = 1 / scaling_factor(idx)
 
-        if scores:
-            return [(k, v) for k, v in sorted(scores.items(), key=lambda item: item[1], reverse=True)][0][0]
-        else:
-            return -1
+        # make a template of null codes, in case of fewer codes then requested we still have constant
+        # size of returned array
+        template = np.ones(return_size, dtype=np.int) * -1
 
-    def score_predictions(self, preds, level, topn, level_constraints=[]):
+        if scores:
+            # sort jobs by highest score, then trim excess jobs
+            sorted_codes = np.array(
+                [k for k, v in sorted(scores.items(), key=lambda item: item[1], reverse=True)]
+            )[:return_size]
+            # pad to the right of the array in case there are fewer than 'return_size' top codes
+            template[:sorted_codes.shape[0]] = sorted_codes
+
+        return template
+
+    def score_predictions(self, preds, level, topn, level_constraints=[], return_size=5):
         """
         :param preds: list of top 50 doc2vec predictions
         :param level:
@@ -323,11 +334,9 @@ class Doc2VecEmbedder(Embedder):
                 preds_df.append({'pred': pred, 'level_constraint':constraint})
             preds = pd.DataFrame(preds_df)
 
-        scores = preds.apply(Doc2VecEmbedder.hyperbolic_scoring, axis = 1, args=(level, topn, self.scoring))
+        scores = preds.apply(Doc2VecEmbedder.hyperbolic_scoring, axis=1, args=(level, topn, self.scoring, return_size))
 
         return scores
-
-
 
     def infer_and_vote(self, occ, verbose=False):
         """
