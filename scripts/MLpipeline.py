@@ -73,6 +73,7 @@ if __name__ == '__main__':
             'input': [TextPreprocessor.preprocess_text(args.job)],
             'code': [-1]
         })
+        acanoc_df = None
 
     else:
         raw_input = pd.read_csv(args.test_set)
@@ -101,7 +102,7 @@ if __name__ == '__main__':
         else:
             acanoc_df = None
 
-    assert len(d2v_input) == len(tfidf_input), "Test set lengths do not match"
+        assert len(d2v_input) == len(tfidf_input), "Test set lengths do not match"
 
     d2vembedder = Doc2VecEmbedder(model_path=args.doc2vec_model, train_data=d2v_train_df, infer_params={
         'steps': 2048,
