@@ -68,7 +68,7 @@ class tfidfEmbedder(Embedder):
     def load(self, path):
         if self.tfidf_model is None:
             self.tfidf_model = load(path)
-            print("Model loaded from {}".format(path))
+            print("TF-IDF Model loaded from {}".format(path))
         else:
             print("Model already loaded")
 
@@ -246,7 +246,7 @@ class Doc2VecEmbedder(Embedder):
 
         pred = []
 
-        for row in model_input.itertuples():
+        for row in tqdm(model_input.itertuples()):
             pred.append(
                 self.single_inference(row.input, verbose)
             )
@@ -335,7 +335,7 @@ class Doc2VecEmbedder(Embedder):
                 preds_df.append({'pred': pred, 'level_constraint':constraint})
             preds = pd.DataFrame(preds_df)
 
-        scores = preds.progress_apply(Doc2VecEmbedder.hyperbolic_scoring, axis=1, args=(level, topn, self.scoring, return_size))
+        scores = preds.apply(Doc2VecEmbedder.hyperbolic_scoring, axis=1, args=(level, topn, self.scoring, return_size))
 
         return scores
 

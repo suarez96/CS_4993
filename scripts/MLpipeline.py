@@ -137,15 +137,20 @@ if __name__ == '__main__':
 
         assert len(sample_tfidf_input) == len(sample_d2v_input)
 
+        print("1/6: Searching for exact matches in database...")
+        prediction_df = pd.DataFrame({
+            'exact_match': sample_d2v_input['input'].progress_apply(
+                d2vembedder.check_exact_match, args=(d2vembedder.train_database,)
+            )
+        })
+        print("2/6: Running Doc2Vec Inference")
         d2v_predictions = d2vembedder.infer(sample_d2v_input['input'])
 
-        prediction_df = pd.DataFrame({
-            'input':sample_d2v_input['input'].astype(str),
-            'svm_pred': clf1['SVM'].predict(tfidf_test_vectors),
-            'rf_pred': clf1['RF'].predict(tfidf_test_vectors),
-            'knn_pred': clf1['KNN'].predict(tfidf_test_vectors),
-            'code': sample_d2v_input['code'].astype(str)
-        })
+        prediction_df['input'] = sample_d2v_input['input'].astype(str)
+        prediction_df['svm_pred'] = clf1['SVM'].predict(tfidf_test_vectors)
+        prediction_df['rf_pred'] = clf1['RF'].predict(tfidf_test_vectors)
+        prediction_df['knn_pred'] = clf1['KNN'].predict(tfidf_test_vectors)
+        prediction_df['code'] = sample_d2v_input['code'].astype(str)
 
         # set acanoc predictions if available
         if acanoc_df is not None:
@@ -159,11 +164,7 @@ if __name__ == '__main__':
 
         prediction_df['d2v_pred'] = first_level_d2v_pred
 
-        print("Searching for exact matches in database...")
-        prediction_df['exact_match'] = sample_d2v_input['input'].progress_apply(d2vembedder.check_exact_match,
-                                                                         args=(d2vembedder.train_database,))
-
-        print("Predicting on first level...")
+        print("3/6: Predicting on first level...")
         prediction_df['p_all_1'] = prediction_df.progress_apply(tfidfEmbedder.ensemble_predict, axis=1, args=(
             ['rf_pred', 'svm_pred', 'knn_pred', 'd2v_pred'], 'svm_pred',
         ))
@@ -186,19 +187,19 @@ if __name__ == '__main__':
 
         prediction_df[d2v_top_5_cols] = second_level_d2v_pred
 
-        print("Predicting on second level...")
+        print("4/6: Predicting on second level...")
         prediction_df = prediction_df.progress_apply(
             pipeline, axis=1, args=('p_all_1', 'svm_pred_234', 'rf_pred_234', 'knn_pred_234',)
         )
 
-        print("Combining Doc2Vec and TFIDF predictions")
+        print("5/6: Combining Doc2Vec and TFIDF predictions")
         prediction_df['p_all_234'] = prediction_df.progress_apply(tfidfEmbedder.ensemble_predict, axis=1, args=(
             ['svm_pred_234', 'rf_pred_234', 'knn_pred_234'] + d2v_top_5_cols, 'knn_pred_234',
         ))
 
         prediction_df[['top1', 'top2', 'top3', 'top4', 'top5']] = None, None, None, None, None
 
-        print("Processing top 5 predictions")
+        print("6/6: Processing top 5 predictions")
         prediction_df = prediction_df.progress_apply(
             get_top_5, axis=1
         )
@@ -209,7 +210,7 @@ if __name__ == '__main__':
 
         # see if ground truth code is in top 5 predictions
         prediction_df['code'] = prediction_df['code'].astype(int)
-        prediction_df['code_in_top_5'] = prediction_df.progress_apply(
+        prediction_df['code_in_top_5'] = prediction_df.apply(
             lambda row: row['code'] in list(row[['top1', 'top2', 'top3', 'top4', 'top5']]), axis=1
         )
 
