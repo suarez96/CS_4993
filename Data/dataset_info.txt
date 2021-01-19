@@ -1,0 +1,16 @@
+- 17_categories.csv = Sadnan's 17 difficult categories (7476 samples)
+- ATP.csv = Gold standard data from ATP CLEANED (500 samples)
+- ATP_gold_standard.xlsx = Gold standard data from ATP with results from v2-v6 ACANOC (500 samples)
+- NOC_majorgroup.csv = scraped data
+- NOC_minorgroup.csv = scraped data
+- NOC_skilltype.csv = scraped data
+- V4_Run.xlsx = ATP Test data with output from v4 acanoc (40024 samples)
+- V5_Run Input(1).xlsx = ATP Test data (40024 samples)
+- doc2vec_test_set.csv = test data used for doc2vec, same as test data for tfidf but cleaned
+- doc2vec_train_set.csv = train data used for doc2vec, same as train data for tfidf but cleaned
+- intersect_test_set_v4_acanoc_no_train_data.csv = the intersection of the tfidf test data (because it is uncleaned) 
+   and the ATP test data (v4/v5 run), data that is already in the train data is dropped (13794 samples)
+- intersect_test_set_v4_acanoc_with_train_data.csv = same as above, but no data dropped (37330 samples)
+- noc_data_get_byws_dealing_slash.csv = full 4-digit scraped data NOC
+- tfidf_test_set.csv = see above
+- tfidf_train_set.csv = see above
