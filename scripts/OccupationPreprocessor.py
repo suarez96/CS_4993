@@ -6,6 +6,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os
 from TextPreprocessor import TextPreprocessor
+from tqdm import tqdm
+tqdm.pandas()
 
 
 class OccupationPreprocessor:
@@ -72,8 +74,8 @@ class OccupationPreprocessor:
     def prepare_df(file_or_df, input_column, code_column, preprocess_text=False, n_digits=4):
 
         read_functions = {
-            'csv':pd.read_csv,
-            'xlsx':pd.read_excel
+            'csv': pd.read_csv,
+            'xlsx': pd.read_excel
         }
 
         # check if dataframe was passed or a file name
@@ -83,9 +85,13 @@ class OccupationPreprocessor:
             ext = file_or_df.split('.')[-1]
 
         if ext in read_functions.keys():
-            df = read_functions[ext](file_or_df)
+            df = read_functions[ext](file_or_df, error_bad_lines=False)
         else:
             df = file_or_df
+
+        # drop null or missing codes so program doesn't crash
+        df['code'].replace('', np.nan, inplace=True)
+        df.dropna(subset=['code'], inplace=True)
 
         # strip single quotes
         df['code'] = df[code_column].apply(
@@ -93,7 +99,8 @@ class OccupationPreprocessor:
         )
         # take double coded inputs and take the first one
         df['code'] = df['code'].apply(
-            lambda x: int(x) if ',' not in x else int(x.split(',')[0])
+            lambda x: int(x) if (',' not in x and '.' not in x)
+            else int(x.split(',')[0].split('.')[0])
         )
         # transform the target variable into the desired length
         df['code'] = df['code'].apply(
@@ -102,7 +109,7 @@ class OccupationPreprocessor:
 
         if preprocess_text:
             print("Input preprocessed")
-            df['input'] = df[input_column].apply(TextPreprocessor.preprocess_text)
+            df['input'] = df[input_column].progress_apply(TextPreprocessor.preprocess_text)
         else:
             print("Input unprocessed by default")
             df['input'] = df[input_column]
