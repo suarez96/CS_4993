@@ -76,12 +76,12 @@ if __name__ == '__main__':
         clf2=pickle.load(f2)
 
     if args.one_inference:
-        sample_tfidf_input = pd.DataFrame({
+        tfidf_input = pd.DataFrame({
             'input': args.jobs,
             'code': [-1] * len(args.jobs)
         })
 
-        sample_d2v_input = pd.DataFrame({
+        d2v_input = pd.DataFrame({
             'input': [TextPreprocessor.preprocess_text(job) for job in args.jobs],
             'code': [-1] * len(args.jobs)
         })

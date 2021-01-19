@@ -15,6 +15,7 @@ from OccupationPreprocessor import OccupationPreprocessor
 
 import nltk
 nltk.download('punkt')
+tqdm.pandas()
 
 
 class Embedder:
@@ -334,7 +335,7 @@ class Doc2VecEmbedder(Embedder):
                 preds_df.append({'pred': pred, 'level_constraint':constraint})
             preds = pd.DataFrame(preds_df)
 
-        scores = preds.apply(Doc2VecEmbedder.hyperbolic_scoring, axis=1, args=(level, topn, self.scoring, return_size))
+        scores = preds.progress_apply(Doc2VecEmbedder.hyperbolic_scoring, axis=1, args=(level, topn, self.scoring, return_size))
 
         return scores
 
