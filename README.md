@@ -28,8 +28,5 @@ flow chart of the proposed model can be seen in the first figure below and a det
 ![Detail: ML hierarchical model](./res/Hierarchical_Model.png)
 
 ## To run the full machine learning pipeline
-```python MLpipeline.py -t <test set> -j <List of job titles for single inference. Necessary when one_inference flag set.> -i <Name of column specifying job titles> 
--c <Name of column specifying NOC Codes> -s <Sample size to be taken randomly from test set> -o <Perform inference on a single job title. Defaults to not being set> 
--d <Path to doc2vec .model file> -n <Number of times to run. Will overide to randomize random seed and will check for sample size to be set.> 
--r <Randomize the seed used for sampling. If not set, a sample of fixed size will always produce the same results.>```
+```python MLpipeline.py -t <test set> -j <List of job titles for single inference. Necessary when one_inference flag set.> -i <Name of column specifying job titles>  -c <Name of column specifying NOC Codes> -s <Sample size to be taken randomly from test set> -o <Perform inference on a single job title. Defaults to not being set>  -d <Path to doc2vec .model file> -n <Number of times to run. Will overide to randomize random seed and will check for sample size to be set.> -r <Randomize the seed used for sampling. If not set, a sample of fixed size will always produce the same results.>```
 
