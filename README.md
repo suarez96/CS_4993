@@ -27,6 +27,28 @@ flow chart of the proposed model can be seen in the first figure below and a det
 ![Full pipeline](./res/ENENOC_Pipeline.png)
 ![Detail: ML hierarchical model](./res/Hierarchical_Model.png)
 
+## Requirements
+You need to have a computer with all the necessary dependencies installed. To install the dependencies, run one of the following commands based on your python package handler.
+
+### Conda
+```conda install --file requirements.txt```
+
+### Pip
+```pip install -r requirements.txt```
+
+
 ## To run the full machine learning pipeline
+Navigate to the ```scripts``` directory and run:
 ```python MLpipeline.py -t <test set> -j <List of job titles for single inference. Necessary when one_inference flag set.> -i <Name of column specifying job titles>  -c <Name of column specifying NOC Codes> -s <Sample size to be taken randomly from test set> -o <Perform inference on a single job title. Defaults to not being set>  -d <Path to doc2vec .model file> -n <Number of times to run. Will overide to randomize random seed and will check for sample size to be set.> -r <Randomize the seed used for sampling. If not set, a sample of fixed size will always produce the same results.>```
 
+Note that many of these flags are either optional, or only appear with other flags. A more commonn run example would be:
+
+```python MLpipeline.py -t ../Data/ATP.csv```
+
+Which uses the path to a pre-existing dataset in the "Data" folder. This will output a .csv file with all the prediction pipeline steps, including the top 5 ENENOC predictions.
+
+or 
+
+```python MLpipeline.py -o -j "music teacher"
+
+which will output the top 5 ENENOC results as a string.
