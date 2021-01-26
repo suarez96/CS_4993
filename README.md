@@ -24,8 +24,8 @@ network (section 2.2.2). The different embeddings are fed into a hierarchical, e
 TF-IDF classifiers, the Doc2Vec neural network, and the aforementioned exact search. The following sections provide further detail on each of these steps. A
 flow chart of the proposed model can be seen in the first figure below and a detailed view of the hierarchical prediction process is shown in the second figure below.
 
-[!Full pipeline](./res/ENENOC_Pipeline.png)
-[!Detail: ML hierarchical model](./res/Hierarchical_Model.png)
+![Full pipeline](./res/ENENOC_Pipeline.png)
+![Detail: ML hierarchical model](./res/Hierarchical_Model.png)
 
 ## To run the full machine learning pipeline
 python MLpipeline.py -t <test set> -j <List of job titles for single inference. Necessary when one_inference flag set.> -i <Name of column specifying job titles> 
