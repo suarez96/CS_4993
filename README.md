@@ -47,8 +47,8 @@ Note that many of these flags are either optional, or only appear with other fla
 
 Which uses the path to a pre-existing dataset in the "Data" folder. This will output a .csv file with all the prediction pipeline steps, including the top 5 ENENOC predictions.
 
-or 
+An example for inference on a single, custom job title would be:
 
-```python MLpipeline.py -o -j "music teacher"
+```python MLpipeline.py -o -j "music teacher"```
 
 which will output the top 5 ENENOC results as a string.
