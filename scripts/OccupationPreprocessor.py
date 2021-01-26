@@ -85,13 +85,13 @@ class OccupationPreprocessor:
             ext = file_or_df.split('.')[-1]
 
         if ext in read_functions.keys():
-            df = read_functions[ext](file_or_df, error_bad_lines=False)
+            df = read_functions[ext](file_or_df)
         else:
             df = file_or_df
 
         # drop null or missing codes so program doesn't crash
-        df['code'].replace('', np.nan, inplace=True)
-        df.dropna(subset=['code'], inplace=True)
+        df[code_column].replace('', np.nan, inplace=True)
+        df.dropna(subset=[code_column], inplace=True)
 
         # strip single quotes
         df['code'] = df[code_column].apply(
